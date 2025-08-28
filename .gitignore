@@ -1,0 +1,6 @@
+# Kunci rahasia dan konfigurasi lingkungan
+.env
+serviceAccountKey.json
+
+# Folder dependensi Node.js
+node_modules
