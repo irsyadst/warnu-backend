@@ -22,7 +22,12 @@ let snap = new midtransClient.Snap({
 // Endpoint untuk MEMBUAT transaksi dan pesanan
 app.post('/create-transaction', async (req, res) => {
     try {
-        const { orderId, totalAmount, items, customerDetails, userId } = req.body;
+        // 💡 Ambil sellerId dari request body
+        const { orderId, totalAmount, items, customerDetails, userId, sellerId } = req.body;
+
+        if (!orderId || !totalAmount || !items || !customerDetails || !userId || !sellerId) {
+            return res.status(400).json({ error: 'Missing required fields in request body' });
+        }
 
         const parameter = {
             "transaction_details": { "order_id": orderId, "gross_amount": totalAmount },
@@ -35,13 +40,13 @@ app.post('/create-transaction', async (req, res) => {
         // --- SIMPAN PESANAN BARU KE FIRESTORE ---
         await db.collection('orders').doc(orderId).set({
             orderId: orderId,
-            userId: userId, // Simpan ID pengguna
+            userId: userId,
             totalAmount: totalAmount,
-            items: items,
-
+            items: items, // items disimpan di sini untuk referensi awal
             customerName: customerDetails.first_name,
             paymentStatus: 'pending', // Status awal
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            sellerId: sellerId
         });
         // -----------------------------------------
 
@@ -59,17 +64,25 @@ app.post('/notification-handler', (req, res) => {
         .then(async (statusResponse) => {
             const orderId = statusResponse.order_id;
             const transactionStatus = statusResponse.transaction_status;
+            const fraudStatus = statusResponse.fraud_status;
 
-            console.log(`Notifikasi diterima untuk Order ID ${orderId}: ${transactionStatus}`);
+            console.log(`Notification received for Order ID ${orderId}: ${transactionStatus}`);
 
             // --- UPDATE STATUS PESANAN DI FIRESTORE ---
             const orderRef = db.collection('orders').doc(orderId);
+            let newStatus = 'pending';
 
-            if (transactionStatus == 'settlement') {
-                await orderRef.update({ paymentStatus: 'settlement' });
+            if (transactionStatus == 'capture') {
+                if (fraudStatus == 'accept') {
+                    newStatus = 'settlement';
+                }
+            } else if (transactionStatus == 'settlement') {
+                newStatus = 'settlement';
             } else if (transactionStatus == 'cancel' || transactionStatus == 'deny' || transactionStatus == 'expire') {
-                await orderRef.update({ paymentStatus: 'failed' });
+                newStatus = 'failed';
             }
+
+            await orderRef.update({ paymentStatus: newStatus });
             // ------------------------------------------
 
             res.status(200).send('OK');
@@ -79,6 +92,7 @@ app.post('/notification-handler', (req, res) => {
             res.status(500).send('Error');
         });
 });
+
 
 const port = 3000;
 app.listen(port, () => {
