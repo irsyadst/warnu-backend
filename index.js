@@ -3,7 +3,7 @@ const midtransClient = require('midtrans-client');
 const admin = require('firebase-admin');
 require('dotenv').config();
 
-// --- INISIALISASI FIREBASE ADMIN ---
+// --- FIREBASE ADMIN INITIALIZATION ---
 const serviceAccount = require('./serviceAccountKey.json');
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -16,35 +16,45 @@ app.use(express.json());
 
 let snap = new midtransClient.Snap({
     isProduction: false,
-    serverKey: process.env.MIDTRANS_SERVER_KEY 
+    serverKey: process.env.MIDTRANS_SERVER_KEY
 });
 
-// Endpoint untuk MEMBUAT transaksi dan pesanan
+// Endpoint to CREATE transaction and order
 app.post('/create-transaction', async (req, res) => {
     try {
-        // 💡 Ambil sellerId dari request body
         const { orderId, totalAmount, items, customerDetails, userId, sellerId } = req.body;
 
         if (!orderId || !totalAmount || !items || !customerDetails || !userId || !sellerId) {
             return res.status(400).json({ error: 'Missing required fields in request body' });
         }
+        
+        const itemDetails = items.map(item => ({
+            id: item.productId,
+            price: item.price,
+            quantity: item.quantity,
+            name: item.name
+        }));
 
         const parameter = {
             "transaction_details": { "order_id": orderId, "gross_amount": totalAmount },
-            "item_details": items,
-            "customer_details": customerDetails
+            "item_details": itemDetails,
+            "customer_details": customerDetails,
+            // --- 💡 PERBAIKAN DITAMBAHKAN DI SINI ---
+            "callbacks": {
+                "finish": "https://warnu.app/finish" // URL redirect yang aman
+            }
         };
 
         const transaction = await snap.createTransaction(parameter);
 
-        // --- SIMPAN PESANAN BARU KE FIRESTORE ---
+        // --- SAVE NEW ORDER TO FIRESTORE ---
         await db.collection('orders').doc(orderId).set({
             orderId: orderId,
             userId: userId,
             totalAmount: totalAmount,
-            items: items, // items disimpan di sini untuk referensi awal
+            items: items,
             customerName: customerDetails.first_name,
-            paymentStatus: 'pending', // Status awal
+            paymentStatus: 'pending',
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             sellerId: sellerId
         });
@@ -54,11 +64,11 @@ app.post('/create-transaction', async (req, res) => {
 
     } catch (e) {
         console.error('Error creating transaction:', e.message);
-        res.status(500).json({ error: e.message });
+        res.status(500).json({ error: "Failed to create transaction. Check server logs." });
     }
 });
 
-// Endpoint untuk MENANGANI notifikasi dari Midtrans
+// Endpoint to HANDLE notifications from Midtrans
 app.post('/notification-handler', (req, res) => {
     snap.transaction.notification(req.body)
         .then(async (statusResponse) => {
@@ -68,7 +78,7 @@ app.post('/notification-handler', (req, res) => {
 
             console.log(`Notification received for Order ID ${orderId}: ${transactionStatus}`);
 
-            // --- UPDATE STATUS PESANAN DI FIRESTORE ---
+            // --- UPDATE ORDER STATUS IN FIRESTORE ---
             const orderRef = db.collection('orders').doc(orderId);
             let newStatus = 'pending';
 
