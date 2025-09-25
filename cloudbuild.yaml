@@ -1,14 +1,25 @@
-# cloudbuild.yaml (Kembali ke Versi Final yang Benar)
+# cloudbuild.yaml (Metode File Konfigurasi)
 
 steps:
+# Langkah 1: Buat file env.yaml yang berisi environment variables
+- name: 'bash'
+  args:
+  - '-c'
+  - |
+    echo "env_variables:" > env.yaml
+    echo "  MIDTRANS_SERVER_KEY: '$$SERVER_KEY'" >> env.yaml
+    echo "  MIDTRANS_CLIENT_KEY: '$$CLIENT_KEY'" >> env.yaml
+    echo "  MIDTRANS_IS_PRODUCTION: 'false'" >> env.yaml
+  secretEnv: ['SERVER_KEY', 'CLIENT_KEY']
+
+# Langkah 2: Deploy aplikasi dengan menggabungkan app.yaml dan env.yaml
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   entrypoint: 'gcloud'
   args:
   - 'app'
   - 'deploy'
-  - '--set-env-vars'
-  - 'MIDTRANS_SERVER_KEY=$$SERVER_KEY,MIDTRANS_CLIENT_KEY=$$CLIENT_KEY,MIDTRANS_IS_PRODUCTION=false'
-  secretEnv: ['SERVER_KEY', 'CLIENT_KEY']
+  - 'app.yaml' # Deploy app.yaml utama
+  - 'env.yaml' # Gabungkan dengan env.yaml yang baru dibuat
   timeout: '1600s'
 
 availableSecrets:
