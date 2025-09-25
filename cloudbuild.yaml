@@ -1,8 +1,16 @@
 # cloudbuild.yaml
+
 steps:
 - name: 'gcr.io/cloud-builders/gcloud'
-  args: ['app', 'deploy']
-  timeout: '1600s'
+  entrypoint: 'bash'
+  args:
+  - '-c'
+  - 'gcloud app deploy --set-env-vars=MIDTRANS_SERVER_KEY=$$SERVER_KEY,MIDTRANS_CLIENT_KEY=$$CLIENT_KEY,MIDTRANS_IS_PRODUCTION=false'
+  secretEnv: ['SERVER_KEY', 'CLIENT_KEY']
 
-options:
-  logging: CLOUD_LOGGING_ONLY
+availableSecrets:
+  secretManager:
+  - versionName: projects/warnu-f1434/secrets/midtrans-server-key/versions/latest
+    env: 'SERVER_KEY'
+  - versionName: projects/warnu-f1434/secrets/midtrans-client-key/versions/latest
+    env: 'CLIENT_KEY'
