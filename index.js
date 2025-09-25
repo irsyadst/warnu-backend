@@ -96,14 +96,14 @@ app.post('/notification-handler', (req, res) => {
                                 throw `Product with ID ${item.id} not found!`;
                             }
 
-                            const currentStock = productDoc.data().stok;
+                            const currentStock = productDoc.data().stock;
                             const newStock = currentStock - item.quantity;
                             
                             if (newStock < 0) {
                                 throw `Not enough stock for product ${item.name}.`;
                             }
 
-                            t.update(productRef, { stok: newStock });
+                            t.update(productRef, { stock: newStock });
                         }
                     });
                     console.log(`Stock updated successfully for Order ID: ${orderId}`);
