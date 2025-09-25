@@ -13,9 +13,9 @@ steps:
 
 availableSecrets:
   secretManager:
-  - versionName: projects/NAMA-PROJECT-ANDA/secrets/midtrans-server-key/versions/latest
+  - versionName: projects/warnu-f1434/secrets/midtrans-server-key/versions/latest
     env: 'SERVER_KEY'
-  - versionName: projects/NAMA-PROJECT-ANDA/secrets/midtrans-client-key/versions/latest
+  - versionName: projects/warnu-f1434/secrets/midtrans-client-key/versions/latest
     env: 'CLIENT_KEY'
 
 # -- TAMBAHKAN 2 BARIS INI DI PALING BAWAH --
