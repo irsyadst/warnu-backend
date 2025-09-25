@@ -1,11 +1,12 @@
-# cloudbuild.yaml
+# cloudbuild.yaml (Versi Perbaikan)
 
 steps:
 - name: 'gcr.io/cloud-builders/gcloud'
   entrypoint: 'bash'
   args:
   - '-c'
-  - 'gcloud app deploy --set-env-vars=MIDTRANS_SERVER_KEY=$$SERVER_KEY,MIDTRANS_CLIENT_KEY=$$CLIENT_KEY,MIDTRANS_IS_PRODUCTION=false'
+  - |
+    gcloud app deploy --set-env-vars="MIDTRANS_SERVER_KEY=$$SERVER_KEY,MIDTRANS_CLIENT_KEY=$$CLIENT_KEY,MIDTRANS_IS_PRODUCTION=false"
   secretEnv: ['SERVER_KEY', 'CLIENT_KEY']
 
 availableSecrets:
