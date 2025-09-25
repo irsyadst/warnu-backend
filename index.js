@@ -4,18 +4,22 @@ const admin = require('firebase-admin');
 require('dotenv').config();
 
 // --- FIREBASE ADMIN INITIALIZATION ---
-const serviceAccount = require('./serviceAccountKey.json');
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+// Otentikasi otomatis saat di Google Cloud
+admin.initializeApp();
 const db = admin.firestore();
 // ------------------------------------
 
 const app = express();
 app.use(express.json());
+const path = require('path');
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '/index.html'));
+});
 
 let snap = new midtransClient.Snap({
-    isProduction: false,
+    // isProduction diambil dari environment variable
+    isProduction: process.env.MIDTRANS_IS_PRODUCTION === 'true',
     serverKey: process.env.MIDTRANS_SERVER_KEY
 });
 
@@ -120,7 +124,7 @@ app.post('/notification-handler', (req, res) => {
 });
 
 
-const port = 3000;
+const port = process.env.PORT || 3000;
 app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
+    console.log(`Server is running on port ${port}`);
 });
