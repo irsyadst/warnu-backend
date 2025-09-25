@@ -1,23 +1,10 @@
-# cloudbuild.yaml (Versi Final dengan Perbaikan Logging)
+# cloudbuild.yaml (Versi Debugging)
 
 steps:
-- name: 'gcr.io/cloud-builders/gcloud'
-  args: [
-    'app',
-    'deploy',
-    '--set-env-vars',
-    'MIDTRANS_SERVER_KEY=$$SERVER_KEY,MIDTRANS_CLIENT_KEY=$$CLIENT_KEY,MIDTRANS_IS_PRODUCTION=false'
-  ]
-  secretEnv: ['SERVER_KEY', 'CLIENT_KEY']
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: 'gcloud'
+  args: ['app', 'deploy']
   timeout: '1600s'
 
-availableSecrets:
-  secretManager:
-  - versionName: projects/warnu-f1434/secrets/midtrans-server-key/versions/latest
-    env: 'SERVER_KEY'
-  - versionName: projects/warnu-f1434/secrets/midtrans-client-key/versions/latest
-    env: 'CLIENT_KEY'
-
-# -- TAMBAHKAN 2 BARIS INI DI PALING BAWAH --
 options:
   logging: CLOUD_LOGGING_ONLY
