@@ -1,4 +1,4 @@
-# cloudbuild.yaml (Versi Final)
+# cloudbuild.yaml (Versi Final dengan Perbaikan Logging)
 
 steps:
 - name: 'gcr.io/cloud-builders/gcloud'
@@ -13,7 +13,11 @@ steps:
 
 availableSecrets:
   secretManager:
-  - versionName: projects/warnu-f1434/secrets/midtrans-server-key/versions/latest
+  - versionName: projects/NAMA-PROJECT-ANDA/secrets/midtrans-server-key/versions/latest
     env: 'SERVER_KEY'
-  - versionName: projects/warnu-f1434/secrets/midtrans-client-key/versions/latest
+  - versionName: projects/NAMA-PROJECT-ANDA/secrets/midtrans-client-key/versions/latest
     env: 'CLIENT_KEY'
+
+# -- TAMBAHKAN 2 BARIS INI DI PALING BAWAH --
+options:
+  logging: CLOUD_LOGGING_ONLY
