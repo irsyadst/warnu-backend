@@ -3,11 +3,8 @@ const midtransClient = require('midtrans-client');
 const admin = require('firebase-admin');
 require('dotenv').config();
 
-// --- FIREBASE ADMIN INITIALIZATION ---
-// Otentikasi otomatis saat di Google Cloud
 admin.initializeApp();
 const db = admin.firestore();
-// ------------------------------------
 
 const app = express();
 app.use(express.json());
@@ -18,7 +15,6 @@ app.get('/', (req, res) => {
 });
 
 let snap = new midtransClient.Snap({
-    // isProduction diambil dari environment variable
     isProduction: process.env.MIDTRANS_IS_PRODUCTION === 'true',
     serverKey: process.env.MIDTRANS_SERVER_KEY
 });
@@ -26,14 +22,33 @@ let snap = new midtransClient.Snap({
 // Endpoint to CREATE transaction and order
 app.post('/create-transaction', async (req, res) => {
     try {
-        // 1. TAMBAHKAN 'address' DARI REQUEST BODY
         const { orderId, totalAmount, items, customerDetails, userId, sellerId, address } = req.body;
 
-        if (!orderId || !totalAmount || !items || !customerDetails || !userId || !sellerId || !address) { // Tambahkan validasi untuk address
+        if (!orderId || !totalAmount || !items || !customerDetails || !userId || !sellerId || !address) {
             return res.status(400).json({ error: 'Missing required fields in request body' });
         }
-        
-        // Midtrans expects 'item_details' with an 'id' field, which is already correct.
+
+        await db.runTransaction(async (t) => {
+            for (const item of items) {
+                const productRef = db.collection('products').doc(item.id);
+                const productDoc = await t.get(productRef);
+
+                if (!productDoc.exists) {
+                    throw new Error(`Product with ID ${item.id} not found!`);
+                }
+
+                const currentStock = productDoc.data().stock;
+                const newStock = currentStock - item.quantity;
+                
+                if (newStock < 0) {
+                    throw new Error(`Not enough stock for product ${item.name}. Only ${currentStock} left.`);
+                }
+
+                t.update(productRef, { stock: newStock });
+            }
+        });
+        console.log(`Stock successfully updated for Order ID: ${orderId}`);
+
         const parameter = {
             "transaction_details": { "order_id": orderId, "gross_amount": totalAmount },
             "item_details": items,
@@ -45,7 +60,6 @@ app.post('/create-transaction', async (req, res) => {
 
         const transaction = await snap.createTransaction(parameter);
 
-        // Save the original 'items' array (with 'id' field) to Firestore
         await db.collection('orders').doc(orderId).set({
             orderId: orderId,
             userId: userId,
@@ -53,9 +67,8 @@ app.post('/create-transaction', async (req, res) => {
             items: items, 
             customerName: customerDetails.first_name,
             paymentStatus: 'pending',
-            // 2. TAMBAHKAN 'orderStatus' DAN 'address' KE FIRESTORE
-            orderStatus: 'diproses', // Status pesanan awal
-            address: address, // Alamat pengiriman
+            orderStatus: 'diproses',
+            address: address,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             sellerId: sellerId
         });
@@ -64,6 +77,9 @@ app.post('/create-transaction', async (req, res) => {
 
     } catch (e) {
         console.error('Error creating transaction:', e.message);
+        if (e.message.includes("Not enough stock")) {
+            return res.status(400).json({ error: e.message });
+        }
         res.status(500).json({ error: "Failed to create transaction. Check server logs." });
     }
 });
@@ -83,34 +99,6 @@ app.post('/notification-handler', (req, res) => {
 
             if (transactionStatus == 'settlement' || (transactionStatus == 'capture' && fraudStatus == 'accept')) {
                 newStatus = 'settlement';
-                
-                try {
-                    await db.runTransaction(async (t) => {
-                        const orderDoc = await t.get(orderRef);
-                        const items = orderDoc.data().items;
-
-                        for (const item of items) {
-                            const productRef = db.collection('products').doc(item.id);
-                            const productDoc = await t.get(productRef);
-
-                            if (!productDoc.exists) {
-                                throw `Product with ID ${item.id} not found!`;
-                            }
-
-                            const currentStock = productDoc.data().stock;
-                            const newStock = currentStock - item.quantity;
-                            
-                            if (newStock < 0) {
-                                throw `Not enough stock for product ${item.name}.`;
-                            }
-
-                            t.update(productRef, { stock: newStock });
-                        }
-                    });
-                    console.log(`Stock updated successfully for Order ID: ${orderId}`);
-                } catch (error) {
-                    console.error(`Failed to update stock for Order ID: ${orderId}`, error);
-                }
             } else if (transactionStatus == 'cancel' || transactionStatus == 'deny' || transactionStatus == 'expire') {
                 newStatus = 'failed';
             }
@@ -123,7 +111,6 @@ app.post('/notification-handler', (req, res) => {
             res.status(500).send('Error');
         });
 });
-
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
