@@ -26,17 +26,17 @@ let snap = new midtransClient.Snap({
 // Endpoint to CREATE transaction and order
 app.post('/create-transaction', async (req, res) => {
     try {
-        // 'items' received from the app has objects with an 'id' field
-        const { orderId, totalAmount, items, customerDetails, userId, sellerId } = req.body;
+        // 1. TAMBAHKAN 'address' DARI REQUEST BODY
+        const { orderId, totalAmount, items, customerDetails, userId, sellerId, address } = req.body;
 
-        if (!orderId || !totalAmount || !items || !customerDetails || !userId || !sellerId) {
+        if (!orderId || !totalAmount || !items || !customerDetails || !userId || !sellerId || !address) { // Tambahkan validasi untuk address
             return res.status(400).json({ error: 'Missing required fields in request body' });
         }
         
         // Midtrans expects 'item_details' with an 'id' field, which is already correct.
         const parameter = {
             "transaction_details": { "order_id": orderId, "gross_amount": totalAmount },
-            "item_details": items, // No mapping needed, 'items' from app is correct
+            "item_details": items,
             "customer_details": customerDetails,
             "callbacks": {
                 "finish": "https://warnu.app/finish"
@@ -53,6 +53,9 @@ app.post('/create-transaction', async (req, res) => {
             items: items, 
             customerName: customerDetails.first_name,
             paymentStatus: 'pending',
+            // 2. TAMBAHKAN 'orderStatus' DAN 'address' KE FIRESTORE
+            orderStatus: 'diproses', // Status pesanan awal
+            address: address, // Alamat pengiriman
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             sellerId: sellerId
         });
@@ -87,8 +90,6 @@ app.post('/notification-handler', (req, res) => {
                         const items = orderDoc.data().items;
 
                         for (const item of items) {
-                            // --- 💡 PERBAIKAN FINAL: Gunakan 'item.id' ---
-                            // Path ke dokumen produk sekarang menggunakan 'id' yang benar dari array 'items'
                             const productRef = db.collection('products').doc(item.id);
                             const productDoc = await t.get(productRef);
 
