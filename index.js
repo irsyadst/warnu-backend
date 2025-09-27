@@ -95,6 +95,7 @@ app.post('/create-multivendor-transaction', async (req, res) => {
                 "first_name": name, // Menggunakan name dari customerDetails
                 "email": email,
                 "phone": phone,
+                "address": address,
                 "shipping_address": {
                     "first_name": name,
                     "phone": phone,
@@ -130,7 +131,7 @@ app.post('/notification-handler', (req, res) => {
             let newOrderStatus = 'pending';
             if (transactionStatus == 'settlement' || (transactionStatus == 'capture' && fraudStatus == 'accept')) {
                 newStatus = 'settlement';
-                newOrderStatus = 'diproses';
+                newOrderStatus = 'pending';
             } else if (transactionStatus == 'cancel' || transactionStatus == 'deny' || transactionStatus == 'expire') {
                 newStatus = 'failed';
                 newOrderStatus = 'dibatalkan';
