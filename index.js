@@ -22,9 +22,9 @@ let snap = new midtransClient.Snap({
 // Endpoint to CREATE transaction and order
 app.post('/create-transaction', async (req, res) => {
     try {
-        const { orderId, totalAmount, items, customerDetails, userId, sellerId, address } = req.body;
+        const { orderId, totalAmount, items, customerDetails, userId, address } = req.body;
 
-        if (!orderId || !totalAmount || !items || !customerDetails || !userId || !sellerId || !address) {
+        if (!orderId || !totalAmount || !items || !customerDetails || !userId || !address) {
             return res.status(400).json({ error: 'Missing required fields in request body' });
         }
 
