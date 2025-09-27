@@ -21,18 +21,16 @@ let snap = new midtransClient.Snap({
 
 app.post('/create-multivendor-transaction', async (req, res) => {
     try {
-        // --- PERBAIKAN: Mengambil data dari struktur baru ---
         const { allItems, customerDetails } = req.body;
         const { userId, name, email, phone, address } = customerDetails;
 
         if (!allItems || !customerDetails || !userId || !address || allItems.length === 0) {
             return res.status(400).json({ error: 'Missing required fields in request body' });
         }
-        // --- SELESAI PERBAIKAN ---
 
         const parentOrderId = `WARNUPARENT-${Date.now()}`;
         const grandTotal = allItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        
+
         await db.runTransaction(async (t) => {
             const productRefs = allItems.map(item => db.collection('products').doc(item.id));
             const productDocs = await t.getAll(...productRefs);
@@ -42,11 +40,11 @@ app.post('/create-multivendor-transaction', async (req, res) => {
                 const productDoc = productDocs[i];
                 const item = allItems[i];
                 if (!productDoc.exists) throw new Error(`Product with ID ${item.id} not found!`);
-                
+
                 const currentStock = productDoc.data().stock;
                 const newStock = currentStock - item.quantity;
                 if (newStock < 0) throw new Error(`Not enough stock for product ${item.name}.`);
-                
+
                 updates.push({ ref: productRefs[i], newStock: newStock });
             }
 
@@ -61,24 +59,26 @@ app.post('/create-multivendor-transaction', async (req, res) => {
             acc[sellerId].push(item);
             return acc;
         }, {});
-        
+
         const batch = db.batch();
         for (const sellerId in ordersBySeller) {
             const sellerItems = ordersBySeller[sellerId];
             const sellerTotal = sellerItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            const childOrderId = `WARNU-${sellerId.substring(0, 4)}-${Date.now()}`;
+            const jakartaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
+            const timestamp = new Date(jakartaTime).getTime();
+            const childOrderId = `WARNU-${sellerId.substring(0, 4)}-${timestamp}`;
 
             const orderData = {
                 orderId: childOrderId,
                 parentOrderId: parentOrderId,
-                userId: userId, // Diambil dari customerDetails
+                userId: userId,
                 totalAmount: sellerTotal,
                 items: sellerItems,
-                customerName: name, // Diambil dari customerDetails
-                customerPhone: phone, // Diambil dari customerDetails
+                customerName: name,
+                customerPhone: phone,
                 paymentStatus: 'pending',
                 orderStatus: 'pending',
-                address: address, // Diambil dari customerDetails
+                address: address,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 sellerId: sellerId,
                 storeName: sellerItems[0].storeName
@@ -92,16 +92,16 @@ app.post('/create-multivendor-transaction', async (req, res) => {
             "transaction_details": { "order_id": parentOrderId, "gross_amount": grandTotal },
             "item_details": allItems,
             "customer_details": {
-                "first_name": name, // Menggunakan name dari customerDetails
+                "first_name": name,
                 "email": email,
                 "phone": phone,
                 "billing_address": {
-                    "address": address // Menggunakan address dari customerDetails
+                    "address": address
                 },
                 "shipping_address": {
                     "first_name": name,
                     "phone": phone,
-                    "address": address // Menggunakan address dari customerDetails
+                    "address": address
                 }
             },
             "callbacks": { "finish": "https://warnu.app/finish" }
@@ -119,7 +119,6 @@ app.post('/create-multivendor-transaction', async (req, res) => {
     }
 });
 
-// ... (sisa kode Anda, termasuk notification-handler)
 app.post('/notification-handler', (req, res) => {
     snap.transaction.notification(req.body)
         .then(async (statusResponse) => {
@@ -128,7 +127,7 @@ app.post('/notification-handler', (req, res) => {
             const fraudStatus = statusResponse.fraud_status;
 
             console.log(`Notification for Order ID ${orderId}: ${transactionStatus}`);
-            
+
             let newStatus = 'pending';
             let newOrderStatus = 'pending';
             if (transactionStatus == 'settlement' || (transactionStatus == 'capture' && fraudStatus == 'accept')) {
@@ -136,7 +135,7 @@ app.post('/notification-handler', (req, res) => {
                 newOrderStatus = 'pending';
             } else if (transactionStatus == 'cancel' || transactionStatus == 'deny' || transactionStatus == 'expire') {
                 newStatus = 'failed';
-                newOrderStatus = 'dibatalkan';
+                newOrderStatus = 'cancelled';
                 // TODO: Logika untuk mengembalikan stok jika pembayaran gagal
             }
 
@@ -156,7 +155,7 @@ app.post('/notification-handler', (req, res) => {
                 const orderRef = db.collection('orders').doc(orderId);
                 await orderRef.update({ paymentStatus: newStatus, orderStatus: newOrderStatus });
             }
-            
+
             res.status(200).send('OK');
         })
         .catch((e) => {
