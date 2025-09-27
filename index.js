@@ -94,11 +94,11 @@ app.post('/create-multivendor-transaction', async (req, res) => {
                 "first_name": customerDetails.name,
                 "email": customerDetails.email,
                 "phone": customerDetails.phone,
-                "address": address,
+                "address": customerDetails.address,
                 "shipping_address": { // <-- TAMBAHKAN OBJEK INI
                     "first_name": customerDetails.name,
                     "phone": customerDetails.phone,
-                    "address": address
+                    "address": customerDetails.address
                 }
             },
             "callbacks": { "finish": "https://warnu.app/finish" }
