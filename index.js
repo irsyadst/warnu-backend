@@ -65,12 +65,11 @@ app.post('/create-transaction', async (req, res) => {
             userId: userId,
             totalAmount: totalAmount,
             items: items, 
-            customerName: customerDetails.first_name,
-            paymentStatus: 'pending',
-            orderStatus: 'diproses',
+            customerName: customerDetails.name,
+            paymentStatus: 'Pending',
+            orderStatus: 'Pending',
             address: address,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            sellerId: sellerId
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
         res.json({ token: transaction.token });
