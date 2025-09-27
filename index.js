@@ -19,14 +19,16 @@ let snap = new midtransClient.Snap({
     serverKey: process.env.MIDTRANS_SERVER_KEY
 });
 
-// ENDPOINT BARU UNTUK MULTI-VENDOR CHECKOUT
 app.post('/create-multivendor-transaction', async (req, res) => {
     try {
-        const { allItems, customerDetails, userId, address } = req.body;
+        // --- PERBAIKAN: Mengambil data dari struktur baru ---
+        const { allItems, customerDetails } = req.body;
+        const { userId, name, email, phone, address } = customerDetails;
 
         if (!allItems || !customerDetails || !userId || !address || allItems.length === 0) {
             return res.status(400).json({ error: 'Missing required fields in request body' });
         }
+        // --- SELESAI PERBAIKAN ---
 
         const parentOrderId = `WARNUPARENT-${Date.now()}`;
         const grandTotal = allItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -69,14 +71,14 @@ app.post('/create-multivendor-transaction', async (req, res) => {
             const orderData = {
                 orderId: childOrderId,
                 parentOrderId: parentOrderId,
-                userId: userId,
+                userId: userId, // Diambil dari customerDetails
                 totalAmount: sellerTotal,
                 items: sellerItems,
-                customerName: customerDetails.name,
-                customerPhone: customerDetails.phone,
+                customerName: name, // Diambil dari customerDetails
+                customerPhone: phone, // Diambil dari customerDetails
                 paymentStatus: 'pending',
                 orderStatus: 'pending',
-                address: address,
+                address: address, // Diambil dari customerDetails
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 sellerId: sellerId,
                 storeName: sellerItems[0].storeName
@@ -86,24 +88,21 @@ app.post('/create-multivendor-transaction', async (req, res) => {
         }
         await batch.commit();
 
-        // --- BAGIAN UTAMA YANG DIPERBAIKI ---
         const parameter = {
             "transaction_details": { "order_id": parentOrderId, "gross_amount": grandTotal },
             "item_details": allItems,
             "customer_details": {
-                "first_name": customerDetails.name,
-                "email": customerDetails.email,
-                "phone": customerDetails.phone,
-                "address": customerDetails.address,
-                "shipping_address": { // <-- TAMBAHKAN OBJEK INI
-                    "first_name": customerDetails.name,
-                    "phone": customerDetails.phone,
-                    "address": customerDetails.address
+                "first_name": name, // Menggunakan name dari customerDetails
+                "email": email,
+                "phone": phone,
+                "shipping_address": {
+                    "first_name": name,
+                    "phone": phone,
+                    "address": address // Menggunakan address dari customerDetails
                 }
             },
             "callbacks": { "finish": "https://warnu.app/finish" }
         };
-        // --- SELESAI PERBAIKAN ---
 
         const transaction = await snap.createTransaction(parameter);
         res.json({ token: transaction.token });
@@ -117,8 +116,7 @@ app.post('/create-multivendor-transaction', async (req, res) => {
     }
 });
 
-
-// ... (sisa kode Anda, termasuk notification-handler dan app.listen)
+// ... (sisa kode Anda, termasuk notification-handler)
 app.post('/notification-handler', (req, res) => {
     snap.transaction.notification(req.body)
         .then(async (statusResponse) => {
@@ -129,10 +127,13 @@ app.post('/notification-handler', (req, res) => {
             console.log(`Notification for Order ID ${orderId}: ${transactionStatus}`);
             
             let newStatus = 'pending';
+            let newOrderStatus = 'pending';
             if (transactionStatus == 'settlement' || (transactionStatus == 'capture' && fraudStatus == 'accept')) {
                 newStatus = 'settlement';
+                newOrderStatus = 'diproses';
             } else if (transactionStatus == 'cancel' || transactionStatus == 'deny' || transactionStatus == 'expire') {
                 newStatus = 'failed';
+                newOrderStatus = 'dibatalkan';
                 // TODO: Logika untuk mengembalikan stok jika pembayaran gagal
             }
 
@@ -144,13 +145,13 @@ app.post('/notification-handler', (req, res) => {
                     const batch = db.batch();
                     querySnapshot.forEach(doc => {
                         const orderRef = db.collection('orders').doc(doc.id);
-                        batch.update(orderRef, { paymentStatus: newStatus });
+                        batch.update(orderRef, { paymentStatus: newStatus, orderStatus: newOrderStatus });
                     });
                     await batch.commit();
                 }
             } else {
                 const orderRef = db.collection('orders').doc(orderId);
-                await orderRef.update({ paymentStatus: newStatus });
+                await orderRef.update({ paymentStatus: newStatus, orderStatus: newOrderStatus });
             }
             
             res.status(200).send('OK');
