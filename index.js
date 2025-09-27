@@ -95,7 +95,9 @@ app.post('/create-multivendor-transaction', async (req, res) => {
                 "first_name": name, // Menggunakan name dari customerDetails
                 "email": email,
                 "phone": phone,
-                "address": address,
+                "billing_address": {
+                    "address": address // Menggunakan address dari customerDetails
+                },
                 "shipping_address": {
                     "first_name": name,
                     "phone": phone,
