@@ -75,7 +75,8 @@ app.post('/create-multivendor-transaction', async (req, res) => {
                 orderStatus: 'diproses',
                 address: address,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                sellerId: sellerId
+                sellerId: sellerId,
+                storeName: sellerItems[0].storeName // Ambil nama toko dari item pertama
             };
             const orderRef = db.collection('orders').doc(childOrderId);
             batch.set(orderRef, orderData);
@@ -121,7 +122,7 @@ app.post('/notification-handler', (req, res) => {
                 // TODO: Logika untuk mengembalikan stok jika pembayaran gagal
             }
 
-            // Cek apakah ini notifikasi untuk parent order atau single order
+            // Cek apakah ini notifikasi untuk parent order
             if (orderId.startsWith('WARNUPARENT-')) {
                 const ordersQuery = db.collection('orders').where('parentOrderId', '==', orderId);
                 const querySnapshot = await ordersQuery.get();
@@ -135,7 +136,7 @@ app.post('/notification-handler', (req, res) => {
                     await batch.commit();
                 }
             } else {
-                // Fallback untuk single order jika masih digunakan
+                // Fallback untuk single order (jika masih digunakan)
                 const orderRef = db.collection('orders').doc(orderId);
                 await orderRef.update({ paymentStatus: newStatus });
             }
