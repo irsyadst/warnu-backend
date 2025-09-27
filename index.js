@@ -1,5 +1,3 @@
-// index.js
-
 const express = require('express');
 const midtransClient = require('midtrans-client');
 const admin = require('firebase-admin');
@@ -32,39 +30,29 @@ app.post('/create-multivendor-transaction', async (req, res) => {
 
         const parentOrderId = `WARNUPARENT-${Date.now()}`;
         const grandTotal = allItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-        // --- BAGIAN UTAMA YANG DIPERBAIKI ---
+        
         await db.runTransaction(async (t) => {
             const productRefs = allItems.map(item => db.collection('products').doc(item.id));
             const productDocs = await t.getAll(...productRefs);
             const updates = [];
 
-            // 1. FASE BACA: Baca semua stok dan validasi
             for (let i = 0; i < productDocs.length; i++) {
                 const productDoc = productDocs[i];
                 const item = allItems[i];
-
-                if (!productDoc.exists) {
-                    throw new Error(`Product with ID ${item.id} not found!`);
-                }
-
+                if (!productDoc.exists) throw new Error(`Product with ID ${item.id} not found!`);
+                
                 const currentStock = productDoc.data().stock;
                 const newStock = currentStock - item.quantity;
-                if (newStock < 0) {
-                    throw new Error(`Not enough stock for product ${item.name}.`);
-                }
-
+                if (newStock < 0) throw new Error(`Not enough stock for product ${item.name}.`);
+                
                 updates.push({ ref: productRefs[i], newStock: newStock });
             }
 
-            // 2. FASE TULIS: Lakukan semua update setelah semua pembacaan selesai
             for (const update of updates) {
                 t.update(update.ref, { stock: update.newStock });
             }
         });
-        // --- SELESAI PERBAIKAN ---
 
-        // Kelompokkan item berdasarkan sellerId untuk membuat pesanan terpisah
         const ordersBySeller = allItems.reduce((acc, item) => {
             const { sellerId } = item;
             if (!acc[sellerId]) acc[sellerId] = [];
@@ -84,9 +72,10 @@ app.post('/create-multivendor-transaction', async (req, res) => {
                 userId: userId,
                 totalAmount: sellerTotal,
                 items: sellerItems,
-                customerName: customerDetails.first_name,
+                customerName: customerDetails.name,
+                customerPhone: customerDetails.phone, // <-- TAMBAHKAN BARIS INI
                 paymentStatus: 'pending',
-                orderStatus: 'diproses',
+                orderStatus: 'pending',
                 address: address,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 sellerId: sellerId,
@@ -115,6 +104,7 @@ app.post('/create-multivendor-transaction', async (req, res) => {
         res.status(500).json({ error: "Failed to create transaction." });
     }
 });
+
 
 // ... (sisa kode Anda, termasuk notification-handler dan app.listen)
 app.post('/notification-handler', (req, res) => {
