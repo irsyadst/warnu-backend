@@ -73,7 +73,7 @@ app.post('/create-multivendor-transaction', async (req, res) => {
                 totalAmount: sellerTotal,
                 items: sellerItems,
                 customerName: customerDetails.name,
-                customerPhone: customerDetails.phone, // <-- TAMBAHKAN BARIS INI
+                customerPhone: customerDetails.phone,
                 paymentStatus: 'pending',
                 orderStatus: 'pending',
                 address: address,
@@ -86,12 +86,23 @@ app.post('/create-multivendor-transaction', async (req, res) => {
         }
         await batch.commit();
 
+        // --- BAGIAN UTAMA YANG DIPERBAIKI ---
         const parameter = {
             "transaction_details": { "order_id": parentOrderId, "gross_amount": grandTotal },
             "item_details": allItems,
-            "customer_details": customerDetails,
+            "customer_details": {
+                "name": customerDetails.name,
+                "email": customerDetails.email,
+                "phone": customerDetails.phone,
+                "shipping_address": { // <-- TAMBAHKAN OBJEK INI
+                    "name": customerDetails.name,
+                    "phone": customerDetails.phone,
+                    "address": address
+                }
+            },
             "callbacks": { "finish": "https://warnu.app/finish" }
         };
+        // --- SELESAI PERBAIKAN ---
 
         const transaction = await snap.createTransaction(parameter);
         res.json({ token: transaction.token });
