@@ -64,9 +64,7 @@ app.post('/create-multivendor-transaction', async (req, res) => {
         for (const sellerId in ordersBySeller) {
             const sellerItems = ordersBySeller[sellerId];
             const sellerTotal = sellerItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            const jakartaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
-            const timestamp = new Date(jakartaTime).getTime();
-            const childOrderId = `WARNU-${sellerId.substring(0, 4)}-${timestamp}`;
+            const childOrderId = `WARNU-${sellerId.substring(0, 4)}-${Date.now()}`;
 
             const orderData = {
                 orderId: childOrderId,
