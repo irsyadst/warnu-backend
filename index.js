@@ -1,3 +1,5 @@
+// index.js
+
 const express = require('express');
 const midtransClient = require('midtrans-client');
 const admin = require('firebase-admin');
@@ -28,36 +30,48 @@ app.post('/create-multivendor-transaction', async (req, res) => {
             return res.status(400).json({ error: 'Missing required fields in request body' });
         }
 
-        // 1. Kelompokkan item berdasarkan sellerId
+        const parentOrderId = `WARNUPARENT-${Date.now()}`;
+        const grandTotal = allItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+        // --- BAGIAN UTAMA YANG DIPERBAIKI ---
+        await db.runTransaction(async (t) => {
+            const productRefs = allItems.map(item => db.collection('products').doc(item.id));
+            const productDocs = await t.getAll(...productRefs);
+            const updates = [];
+
+            // 1. FASE BACA: Baca semua stok dan validasi
+            for (let i = 0; i < productDocs.length; i++) {
+                const productDoc = productDocs[i];
+                const item = allItems[i];
+
+                if (!productDoc.exists) {
+                    throw new Error(`Product with ID ${item.id} not found!`);
+                }
+
+                const currentStock = productDoc.data().stock;
+                const newStock = currentStock - item.quantity;
+                if (newStock < 0) {
+                    throw new Error(`Not enough stock for product ${item.name}.`);
+                }
+
+                updates.push({ ref: productRefs[i], newStock: newStock });
+            }
+
+            // 2. FASE TULIS: Lakukan semua update setelah semua pembacaan selesai
+            for (const update of updates) {
+                t.update(update.ref, { stock: update.newStock });
+            }
+        });
+        // --- SELESAI PERBAIKAN ---
+
+        // Kelompokkan item berdasarkan sellerId untuk membuat pesanan terpisah
         const ordersBySeller = allItems.reduce((acc, item) => {
             const { sellerId } = item;
-            if (!acc[sellerId]) {
-                acc[sellerId] = [];
-            }
+            if (!acc[sellerId]) acc[sellerId] = [];
             acc[sellerId].push(item);
             return acc;
         }, {});
-
-        // 2. Buat ID unik untuk pembayaran utama (parent) dan hitung total keseluruhan
-        const parentOrderId = `WARNUPARENT-${Date.now()}`;
-        const grandTotal = allItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         
-        // 3. Kurangi stok untuk semua produk dalam satu transaksi database
-        await db.runTransaction(async (t) => {
-            for (const item of allItems) {
-                const productRef = db.collection('products').doc(item.id);
-                const productDoc = await t.get(productRef);
-                if (!productDoc.exists) throw new Error(`Product with ID ${item.id} not found!`);
-                
-                const currentStock = productDoc.data().stock;
-                const newStock = currentStock - item.quantity;
-                if (newStock < 0) throw new Error(`Not enough stock for product ${item.name}.`);
-                
-                t.update(productRef, { stock: newStock });
-            }
-        });
-
-        // 4. Buat dokumen pesanan terpisah untuk setiap toko
         const batch = db.batch();
         for (const sellerId in ordersBySeller) {
             const sellerItems = ordersBySeller[sellerId];
@@ -66,7 +80,7 @@ app.post('/create-multivendor-transaction', async (req, res) => {
 
             const orderData = {
                 orderId: childOrderId,
-                parentOrderId: parentOrderId, // Tautkan ke pembayaran utama
+                parentOrderId: parentOrderId,
                 userId: userId,
                 totalAmount: sellerTotal,
                 items: sellerItems,
@@ -76,14 +90,13 @@ app.post('/create-multivendor-transaction', async (req, res) => {
                 address: address,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 sellerId: sellerId,
-                storeName: sellerItems[0].storeName // Ambil nama toko dari item pertama
+                storeName: sellerItems[0].storeName
             };
             const orderRef = db.collection('orders').doc(childOrderId);
             batch.set(orderRef, orderData);
         }
         await batch.commit();
 
-        // 5. Buat satu transaksi Midtrans untuk total keseluruhan
         const parameter = {
             "transaction_details": { "order_id": parentOrderId, "gross_amount": grandTotal },
             "item_details": allItems,
@@ -103,8 +116,7 @@ app.post('/create-multivendor-transaction', async (req, res) => {
     }
 });
 
-
-// SESUAIKAN NOTIFICATION HANDLER UNTUK MULTI-VENDOR
+// ... (sisa kode Anda, termasuk notification-handler dan app.listen)
 app.post('/notification-handler', (req, res) => {
     snap.transaction.notification(req.body)
         .then(async (statusResponse) => {
@@ -122,7 +134,6 @@ app.post('/notification-handler', (req, res) => {
                 // TODO: Logika untuk mengembalikan stok jika pembayaran gagal
             }
 
-            // Cek apakah ini notifikasi untuk parent order
             if (orderId.startsWith('WARNUPARENT-')) {
                 const ordersQuery = db.collection('orders').where('parentOrderId', '==', orderId);
                 const querySnapshot = await ordersQuery.get();
@@ -136,7 +147,6 @@ app.post('/notification-handler', (req, res) => {
                     await batch.commit();
                 }
             } else {
-                // Fallback untuk single order (jika masih digunakan)
                 const orderRef = db.collection('orders').doc(orderId);
                 await orderRef.update({ paymentStatus: newStatus });
             }
