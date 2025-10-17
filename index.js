@@ -15,7 +15,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api', routes); // Menambahkan prefix /api untuk semua rute
 
 // Fallback untuk mengirim index.html jika tidak ada route API yang cocok
-app.get('*', (req, res) => {
+app.get('/*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
