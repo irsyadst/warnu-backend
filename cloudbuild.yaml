@@ -21,9 +21,9 @@ steps:
 # Bagian ini tetap diperlukan untuk mengambil secret dari Secret Manager
 availableSecrets:
   secretManager:
-  - versionName: projects/warnu-f1434/secrets/midtrans-server-key/versions/latest
+  - versionName: projects/warnu-new/secrets/midtrans-server-key/versions/latest
     env: 'SERVER_KEY'
-  - versionName: projects/warnu-f1434/secrets/midtrans-client-key/versions/latest
+  - versionName: projects/warnu-new/secrets/midtrans-client-key/versions/latest
     env: 'CLIENT_KEY'
 
 options:
