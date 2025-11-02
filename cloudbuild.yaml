@@ -15,9 +15,9 @@ steps:
 
 availableSecrets:
   secretManager:
-  - versionName: projects/warnu-new/secrets/midtrans-server-key/versions/latest
+  - versionName: projects/68778227521/secrets/midtrans-server-key/versions/latest
     env: 'SERVER_KEY'
-  - versionName: projects/warnu-new/secrets/midtrans-client-key/versions/latest
+  - versionName: projects/68778227521/secrets/midtrans-client-key/versions/latest
     env: 'CLIENT_KEY'
 
 options:
