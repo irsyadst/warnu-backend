@@ -1,8 +1,4 @@
-# cloudbuild.yaml (Metode Final: Membuat .env Secara Aman)
-
 steps:
-# File ini akan dibuat di dalam lingkungan build dan ikut di-deploy bersama aplikasi.
-# File ini TIDAK AKAN PERNAH ada di repositori GitHub Anda.
 - name: 'bash'
   args:
   - '-c'
@@ -12,13 +8,11 @@ steps:
     echo "MIDTRANS_IS_PRODUCTION=false" >> .env
   secretEnv: ['SERVER_KEY', 'CLIENT_KEY']
 
-# File .env yang dibuat di langkah sebelumnya akan ikut ter-deploy bersama kode lainnya.
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   entrypoint: 'gcloud'
   args: ['app', 'deploy']
   timeout: '1600s'
 
-# Bagian ini tetap diperlukan untuk mengambil secret dari Secret Manager
 availableSecrets:
   secretManager:
   - versionName: projects/warnu-new/secrets/midtrans-server-key/versions/latest
